@@ -1,0 +1,130 @@
+#!/usr/bin/env python3
+# MIT License
+#
+# Copyright (c) 2016 Steve Milner
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+"""
+Simple tool to make trello cards via yaml.
+"""
+
+import argparse
+import logging
+import os
+import yaml
+
+from trello import TrelloClient
+
+
+def setup_logging(level):
+    """
+    Sets up the logger.
+
+    :param level: The level to use. This can be str or int.
+    :type level: mixed
+    :returns: The configured logger.
+    :rtype: logging.Logger
+    """
+    if isinstance(level, str):
+        level = level.upper()
+    logger = logging.getLogger('trello')
+    handler = logging.StreamHandler()
+    handler.formatter = logging.Formatter('%(levelname)s - %(message)s')
+    logger.addHandler(handler)
+    logger.setLevel(level)
+    return logger
+
+
+def main():
+    """
+    Main entrypoint.
+    """
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        '-c', '--config',
+        default=os.path.realpath(os.path.expanduser('~/.config/tcm.yaml')))
+    parser.add_argument('-l', '--log-level', default='info')
+    parser.add_argument('new_card', nargs=1)
+    args = parser.parse_args()
+   
+    logger = setup_logging(args.log_level)
+    logger.debug('Command line arguments: {}'.format(args))
+
+    try:
+        with open(args.config) as c:
+            C = yaml.load(c.read())
+    except Exception as error:
+        parser.error('Could not parse configuration file: {}: {}'.format(
+            type(error), error))
+
+    try:
+        with open(args.new_card[0], 'r') as card_yaml:
+            d = yaml.load(card_yaml.read())
+    except Exception as error:
+        parser.error('Could not parse new card file: {}: {}'.format(
+            type(error), error))
+
+    client = TrelloClient(
+        api_key=C['api_key'],
+        api_secret=C['api_secret'],
+        token=C['token']
+    )
+
+    # We have to list board to find the right one
+    logger.debug('Listing boards')
+    for board in client.list_boards():
+        if board.name == d['board']:
+            logger.info('Found board "{}"'.format(board.name))
+            # We have to list lists to find the right one
+            logger.debug('Listing lists')
+            for tlist in board.all_lists():
+                if tlist.name == d['list']:
+                    logger.info('Found list "{}"'.format(tlist.name))
+                    card = tlist.add_card(d['title'], d['description'])
+                    logger.info('Created card "{}"'.format(card.name))
+
+                    for checklist, tasks in d.get('checklists', {}).items():
+                        card.add_checklist(checklist, tasks)
+                        logger.info('Added checklist "{}" to card "{}"'.format(
+                            checklist, card.name))
+
+                    if d.get('labels'):
+                        labels = {}
+                        # We have to list labels on the board to find the
+                        # right one
+                        logger.debug('Listing labels for board "{}"'.format(
+                            board.name))
+                        for label in board.get_labels():
+                            labels[label.name] = label
+                        for label_name in d['labels']:
+                            card.add_label(labels[label_name])
+                            logger.info('Added label "{}" for card "{}"'.format(
+                                label_name, card.name))
+
+                    logger.info('Card link: {}'.format(card.short_url))
+                    raise SystemExit(0)
+
+        logger.error(
+            'Unable to locate list "{}" on board "{}"'.format(
+                d['list'], d['board']))
+        raise SystemExit(2)
+
+
+if __name__ == '__main__':
+    main()

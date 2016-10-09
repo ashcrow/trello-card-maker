@@ -1,0 +1,16 @@
+# Required: The name of the board
+board: 
+# Required: The name of the list
+list: 
+# Required: Title of the card
+title: 
+# Optional: List of labels to add to the card
+labels:
+  - 
+# Required: Description of the card. Using | is recommended.
+description: |
+  
+# Optional: List of checklists to add to the card
+checklists:
+  tasks:
+    - 

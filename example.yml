@@ -1,0 +1,19 @@
+board: Development
+list: New
+title: Simple trello card creation tool
+labels:
+  - development
+description: |
+  As a user of trello
+  I would like to be able to upload new cards via cli tool
+  so that I can configure my editor to be a card creating machine.
+  
+  **Acceptance Criteria**
+  
+  - Verify that a cli tool is created
+  - Verify the tool uses a template of some kind
+  - Verify it is open source
+checklists:
+  tasks:
+    - Write the code
+    - Tell someone about it
